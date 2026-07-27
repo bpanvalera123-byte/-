@@ -1,0 +1,61 @@
+name: Build Windows Application
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags:
+      - 'v*'  # Срабатывает при создании тега, например v1.0.0
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Чтение исходного кода
+      uses: actions/checkout@v4
+
+    - name: Настройка Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Установка зависимостей
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Сборка Клиента (Chat Client) через PyInstaller
+      run: |
+        pyinstaller --noconfirm --onedir --windowed `
+          --name="LAN_Chat_Client" `
+          --add-data="assets;assets" `
+          --icon="assets/icon.ico" `
+          src/app.py
+
+    - name: Сборка Сервера (Chat Server) через PyInstaller
+      run: |
+        pyinstaller --noconfirm --onedir --console `
+          --name="LAN_Chat_Server" `
+          src/server.py
+
+    - name: Упаковка готовых файлов в ZIP
+      shell: powershell
+      run: |
+        Compress-Archive -Path dist/LAN_Chat_Client, dist/LAN_Chat_Server -DestinationPath LAN_Chat_Windows.zip
+
+    - name: Сохранение артефакта сборки (Доступен в Action Runs)
+      uses: actions/upload-artifact@v4
+      with:
+        name: LAN_Chat_Windows_Build
+        path: LAN_Chat_Windows.zip
+
+    - name: Публикация в GitHub Releases (при релизе v*)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: LAN_Chat_Windows.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
