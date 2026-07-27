@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main", "master" ]
     tags:
-      - 'v*'  # Срабатывает при создании тега, например v1.0.0
+      - 'v*'
   pull_request:
     branches: [ "main", "master" ]
 
@@ -31,22 +31,20 @@ jobs:
       run: |
         pyinstaller --noconfirm --onedir --windowed `
           --name="LAN_Chat_Client" `
-          --add-data="assets;assets" `
-          --icon="assets/icon.ico" `
-          src/app.py
+          app.py
 
     - name: Сборка Сервера (Chat Server) через PyInstaller
       run: |
         pyinstaller --noconfirm --onedir --console `
           --name="LAN_Chat_Server" `
-          src/server.py
+          server.py
 
     - name: Упаковка готовых файлов в ZIP
       shell: powershell
       run: |
         Compress-Archive -Path dist/LAN_Chat_Client, dist/LAN_Chat_Server -DestinationPath LAN_Chat_Windows.zip
 
-    - name: Сохранение артефакта сборки (Доступен в Action Runs)
+    - name: Сохранение артефакта сборки
       uses: actions/upload-artifact@v4
       with:
         name: LAN_Chat_Windows_Build
