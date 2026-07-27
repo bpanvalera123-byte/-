@@ -5,9 +5,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QHBoxLayout,
                              QVBoxLayout, QListWidget, QListWidgetItem, QTextEdit, 
                              QPushButton, QLabel, QFileDialog, QMenu, QInputDialog)
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QFont, QIcon, QPixmap
 
-# Сетевой поток для приема данных
 class NetworkWorker(QThread):
     message_received = Signal(dict)
     
@@ -27,25 +25,25 @@ class NetworkWorker(QThread):
             print(f"Ошибка сети: {e}")
 
     def send(self, data):
-        self.socket.sendall(json.dumps(data).encode('utf-8'))
+        try:
+            self.socket.sendall(json.dumps(data).encode('utf-8'))
+        except Exception as e:
+            print(f"Ошибка отправки: {e}")
 
 class ChatApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.custom_names = {}
         self.init_ui()
-        self.custom_names = {}  # Кастомные имена пользователей по IP
-        self.messages = {}      # Хранение ID сообщений для ред/удал
 
     def init_ui(self):
         self.setWindowTitle("Локальный LAN-Чат")
         self.resize(1000, 700)
         
-        # Главный виджет и векторный лейаут (Плавное масштабирование)
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         main_layout = QHBoxLayout(main_widget)
 
-        # Левая панель — пользователи / чаты
         left_panel = QVBoxLayout()
         self.user_list = QListWidget()
         self.user_list.itemDoubleClicked.connect(self.rename_user)
@@ -53,18 +51,15 @@ class ChatApp(QMainWindow):
         add_ip_btn = QPushButton("+ Добавить по IP")
         add_ip_btn.clicked.connect(self.add_user_by_ip)
         
-        left_panel.addWidget(QLabel("Контакты и Чат:"))
+        left_panel.addWidget(QLabel("Контакты:"))
         left_panel.addWidget(self.user_list)
         left_panel.addWidget(add_ip_btn)
 
-        # Правая панель — область чата
         right_panel = QVBoxLayout()
-        
         self.chat_history = QListWidget()
         self.chat_history.setContextMenuPolicy(Qt.CustomContextMenu)
         self.chat_history.customContextMenuRequested.connect(self.open_message_menu)
         
-        # Поле ввода
         input_layout = QHBoxLayout()
         self.msg_input = QTextEdit()
         self.msg_input.setMaximumHeight(80)
@@ -82,16 +77,13 @@ class ChatApp(QMainWindow):
         right_panel.addWidget(self.chat_history)
         right_panel.addLayout(input_layout)
 
-        # Добавляем в основной layout с пропорциями
         main_layout.addLayout(left_panel, 1)
         main_layout.addLayout(right_panel, 3)
 
-        # Подключение к серверу
-        self.network = NetworkWorker("127.0.0.1")  # Укажите IP сервера
+        self.network = NetworkWorker("127.0.0.1")
         self.network.message_received.connect(self.on_message_received)
         self.network.start()
 
-    # Всплывающее меню для редактирования, удаления и реакций
     def open_message_menu(self, position):
         item = self.chat_history.itemAt(position)
         if not item:
@@ -99,20 +91,17 @@ class ChatApp(QMainWindow):
             
         menu = QMenu()
         edit_action = menu.addAction("✏️ Редактировать")
-        delete_action = menu.addAction("🗑️ Удалить для всех")
-        react_action = menu.addAction("👍 Поставить реакцию")
+        delete_action = menu.addAction("🗑️ Удалить")
         
         action = menu.exec_(self.chat_history.mapToGlobal(position))
         
         if action == edit_action:
             new_text, ok = QInputDialog.getText(self, "Редактирование", "Новый текст:")
-            if ok:
+            if ok and new_text:
                 item.setText(f"[Изменено] {new_text}")
-                # Отправка команды на сервер...
         elif action == delete_action:
             row = self.chat_history.row(item)
             self.chat_history.takeItem(row)
-            # Отправка команды удаления на сервер...
 
     def add_user_by_ip(self):
         ip, ok = QInputDialog.getText(self, "Добавить IP", "Введите IP адрес устройства:")
@@ -143,7 +132,6 @@ class ChatApp(QMainWindow):
     def send_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Выберите файл (до 100МБ)")
         if file_path:
-            # Логика бинарной передачи файла кусочками по TCP
             pass
 
     def on_message_received(self, data):
@@ -153,7 +141,6 @@ class ChatApp(QMainWindow):
             status = "🟢 В сети" if data["status"] == "online" else "🔴 Отошёл"
             name = self.custom_names.get(ip, ip)
             
-            # Обновляем статус в списке
             for i in range(self.user_list.count()):
                 item = self.user_list.item(i)
                 if item.data(Qt.UserRole) == ip:
@@ -164,4 +151,7 @@ class ChatApp(QMainWindow):
             self.chat_history.addItem(f"{sender}: {data['content']}")
 
 if __name__ == "__main__":
-
+    app = QApplication(sys.argv)
+    window = ChatApp()
+    window.show()
+    sys.exit(app.exec())
